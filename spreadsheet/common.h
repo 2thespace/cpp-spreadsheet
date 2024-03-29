@@ -7,8 +7,11 @@
 #include <string_view>
 #include <variant>
 #include <vector>
+#include <regex>
 
 // Позиция ячейки. Индексация с нуля.
+
+
 struct Position {
     int row = 0;
     int col = 0;
@@ -39,7 +42,7 @@ public:
     enum class Category {
         Ref,    // ссылка на ячейку с некорректной позицией
         Value,  // ячейка не может быть трактована как число
-        Div0,  // в результате вычисления возникло деление на ноль
+        Arithmetic,  // в результате вычисления возникло деление на ноль
     };
 
     FormulaError(Category category);
@@ -147,3 +150,33 @@ public:
 
 // Создаёт готовую к работе пустую таблицу.
 std::unique_ptr<SheetInterface> CreateSheet();
+
+struct ValueGetter {
+    double operator()(const std::string& text) {
+        try {
+            if (text.empty())
+            {
+                return 0.0;
+            }
+            static const std::regex kDoubleValuePattern("^(-?)(0|([1-9][0-9]*))(.[0-9]+)?$");
+
+            std::smatch match;
+            if (std::regex_match(text.cbegin(), text.cend(), match, kDoubleValuePattern))
+                return std::stod(text);
+
+            // In case string could not be converted to double
+            throw std::runtime_error("");
+        }
+        catch (...) {
+            throw FormulaError(FormulaError::Category::Value);
+        }
+    }
+
+    double operator()(double value) {
+        return value;
+    }
+
+    double operator()(const FormulaError& error) {
+        throw error;
+    }
+};
